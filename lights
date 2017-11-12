@@ -1,0 +1,67 @@
+#!/bin/bash
+
+function set_lights(){
+    val=$1
+
+    pin_r=17
+    pin_g=22
+    pin_b=24
+
+    weight_r=1
+    weight_g=1
+    weight_b=0.5
+
+    val_r=$(echo "scale=20; ${val}*${weight_r}" | bc | sed 's/^\./0./' | cut -d. -f1 )
+    val_g=$(echo "scale=20; ${val}*${weight_g}" | bc | sed 's/^\./0./' | cut -d. -f1 )
+    val_b=$(echo "scale=20; ${val}*${weight_b}" | bc | sed 's/^\./0./' | cut -d. -f1 )
+
+    echo rgb=${val_r},${val_g},${val_b}
+
+    pigs p $pin_r $val_r
+    pigs p $pin_g $val_g
+    pigs p $pin_b $val_b
+}
+
+case "$1" in
+    on)
+        set_lights 255
+        ;;
+    off)
+        set_lights 0
+        ;;
+    raise|fade)
+        # lights raise|fade <time> <from> <to>
+
+        interval=$[$2*600]
+        val_from=$3
+        val_to=$4
+
+        val_now=$val_from
+        val_now_int=$val_now
+        if [ $val_from -lt $val_to ]; then
+            comp=-lt
+        else
+            comp=-gt
+        fi
+
+        step=$(echo "scale=20; (${val_to}-${val_from})/${interval}" | bc)
+        #echo val_now=${val_now} val_now_int=${val_now_int} val_from=${val_from} val_to=${val_to} comp=${comp} interval=${interval} step=${step}
+        if [ $step == 0 ]; then
+            echo ERROR: step=0
+            exit 1
+        fi
+
+        echo from=$val_from to=$val_to interval=$interval step=$step
+        while [ $(echo $val_now | cut -d. -f1) $comp $val_to ]; do
+            #echo -n "val_now=$val_now val_now_int=$val_now_int "
+            set_lights $(echo $val_now | cut -d. -f1)
+            val_now=$(echo "scale=20; ${val_now}+${step}" | bc | sed 's/^\./0./')
+            sleep 0.1
+        done
+
+        ;;
+    *)
+        set_lights $1
+        ;;
+esac
+
